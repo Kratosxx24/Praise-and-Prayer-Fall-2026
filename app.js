@@ -26,7 +26,7 @@
   // Arrangement sections: "Bridge x3" / "2x" note -> repeat count, and a color by type.
   function section(s) {
     const sec = typeof s === "string" ? { name: s } : { ...s };
-    const rep = /\s*(?:x\s*(\d+)|(\d+)\s*x)\b\.?\s*/i;
+    const rep = /\s*(?:x\s*(\d+)|(\d+)\s*x)\b[.,]?\s*/i;
     for (const f of ["name", "note"]) {
       const m = sec[f] && sec[f].match(rep);
       if (m) { sec.x = +(m[1] || m[2]); sec[f] = sec[f].replace(rep, " ").trim(); }
@@ -58,7 +58,7 @@
   const noteName = (p, flats) => (flats ? FLAT : SHARP)[mod(p)];
   const pretty = (s) => s.replace(/([A-G])#/g, "$1♯").replace(/([A-G])b/g, "$1♭");
   const DEG = ["1", "♭2", "2", "♭3", "3", "4", "♯4", "5", "♭6", "6", "♭7", "7"];
-  const CHORD = /^([A-G][#b]?)((?:maj|min|dim|aug|sus|add|m|M|[0-9]|[#b+°ø()^-])*)(?:\/([A-G][#b]?))?$/;
+  const CHORD = /^([A-G][#b]?)((?:maj|min|dim|aug|sus|add|omit|no|No|m|M|[0-9]|[#b+°ø()^*-])*)(?:\/([A-G][#b]?))?$/;
   const isChord = (t) => CHORD.test(norm(t)) || /^N\.?C\.?$/i.test(t);
   const keyPcOf = (song) => pcOf(song.key.split("→")[0].trim());
 
@@ -68,7 +68,9 @@
     if (!m) return esc(raw);
     const [, root, qual, bass] = m;
     const name = (n) => ctx.nums ? DEG[mod(pcOf(n) - ctx.keyPc)] : pretty(noteName(pcOf(n) + ctx.shift, ctx.flats));
-    return `${name(root)}${qual ? `<span class="q">${esc(qual)}</span>` : ""}${bass ? `<span class="sl">/${name(bass)}</span>` : ""}`;
+    // Like SongSelect: minor "m" full size, the rest (2, sus, (4), maj7) raised.
+    const [, minor = "", ext] = qual.match(/^(m(?!aj))?(.*)$/);
+    return `${name(root)}${minor}${ext ? `<span class="q">${esc(ext)}</span>` : ""}${bass ? `<span class="sl">/${name(bass)}</span>` : ""}`;
   }
 
   const BAR = /^[|:.\]\[]+$|^\|\|?:?$|^:?\|\|?$/;

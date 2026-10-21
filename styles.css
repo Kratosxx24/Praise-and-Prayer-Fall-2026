@@ -168,12 +168,6 @@ main { padding: 36px var(--gutter) 56px; outline: none; }
 .key small { display: block; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .song-note { margin: 14px 0 0; padding: 11px 14px; background: var(--surface-2); border-radius: 8px; font-size: 14px; color: var(--ink-2); }
 
-.flow { list-style: none; margin: 16px 0 0; padding: 14px 0 0; border-top: 1px solid var(--line); counter-reset: s; columns: 220px 3; column-gap: 28px; }
-.flow li { counter-increment: s; display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: baseline; font-size: 15px; padding: 3px 0; break-inside: avoid; }
-.flow li::before { content: counter(s); font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; }
-.flow .sec { font-weight: 600; }
-.flow .sec .chip { margin-left: 6px; font-weight: 500; }
-.flow .sec-note { display: block; font-weight: 400; font-size: 13.5px; color: var(--muted); }
 .flow-empty { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
 
 .song-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
@@ -270,8 +264,6 @@ main.enter .rise { animation: rise .45s cubic-bezier(.2, .7, .2, 1) both; animat
 .page-head.row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .focus-btn { gap: 8px; padding: 10px 16px; }
 .focus-btn svg { width: 16px; height: 16px; }
-.head-actions { display: flex; gap: 8px; }
-label.btn { cursor: pointer; }
 .note-small.wide { max-width: 640px; margin-top: 24px; }
 
 /* ---------- focus mode: running order only ---------- */
@@ -314,7 +306,6 @@ body.is-focus .top, body.is-focus .foot { display: none; }
 .sel { gap: 8px; padding: 0 4px 0 10px; color: var(--muted); }
 .sel select { font: inherit; font-weight: 600; color: var(--ink); background: var(--surface-2); border: 0; border-radius: 9px; padding: 8px 10px; min-height: 38px; }
 button.tgl[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
-.toolbar [data-act="edit"] { margin-left: auto; }
 .capo-note { min-height: 20px; font-size: 13.5px; color: var(--muted); padding: 2px 4px 0; }
 .capo-note b { color: var(--ink); }
 .map.compact { border-top: 0; padding-top: 8px; margin-top: 4px; }
@@ -322,10 +313,6 @@ button.tgl[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .map.compact .blk:hover { transform: translateY(-1px); filter: brightness(1.05); }
 
 .sheet-body { display: grid; gap: 24px; margin-top: 18px; }
-.sheet-body.editing { grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 980px) { .sheet-body.editing { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .sheet-body.editing .editor { position: sticky; top: 140px; } }
-.editor { display: none; }
-.sheet-body.editing .editor { display: block; animation: rise .3s cubic-bezier(.2, .7, .2, 1) both; }
 .sheet { --fs: 1; font: calc(17px * var(--fs))/1.3 Verdana, "DejaVu Sans", var(--sans); min-width: 0; }
 /* Like the SongSelect PDFs: sections flow down two columns on wide screens. */
 @media (min-width: 760px) { .sheet-body:not(.editing) .sheet { columns: 2; column-gap: 40px; } }
@@ -351,24 +338,36 @@ button.tgl[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .sh-ly { padding: 2px 0; }
 .sh-ly.cmt { font-style: italic; color: var(--muted); }
 
-.editor textarea { width: 100%; min-height: 420px; resize: vertical; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 14.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; tab-size: 4; }
-.editor textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
-.ed-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
-.ed-row .label { width: 100%; }
-.ins { font: inherit; font-size: 14px; font-weight: 700; display: inline-flex; align-items: baseline; gap: 5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; transition: background-color .15s, transform .1s; }
-.ins:hover { background: var(--surface-2); }
-.ins:active { transform: scale(.95); }
-.ins small { font-size: 11px; color: var(--muted); font-weight: 600; }
-.ins.sec { border: 0; border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) var(--tint), var(--surface)); font-weight: 600; font-size: 13px; }
-.ed-help { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
-.ed-help b { color: var(--ink-2); font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
-.linkish { font: inherit; background: none; border: 0; padding: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; margin-left: 4px; }
-.muted { color: var(--muted); font-size: 13px; }
 .sheet-nav { display: flex; justify-content: space-between; gap: 12px; margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--line); }
 .st { font-size: 12px; font-weight: 600; }
+.st-pub { color: var(--cello); } .st-none { color: var(--muted); }
 .locked { padding: 16px 18px; margin-bottom: 20px; max-width: 640px; font-size: 15px; color: var(--ink-2); border-left: 4px solid var(--chorus); }
 .locked b { color: var(--ink); }
-.st-mine { color: var(--cello); } .st-pub { color: var(--piano); }
+
+/* ---------- stage mode: just the sheet ---------- */
+body.is-stage .top, body.is-stage .foot, body.is-stage .sheet-head, body.is-stage .map.compact, body.is-stage .map-notes, body.is-stage .sheet-nav, body.is-stage .kbd-hint { display: none; }
+body.is-stage main { padding-top: 8px; }
+body.is-stage .toolbar { top: 8px; margin-top: 0; }
+.stage-title { display: none; font-weight: 700; font-size: 15px; padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+body.is-stage .stage-title { display: block; }
+.kbd-hint { font-size: 12px; color: var(--muted); margin-top: 28px; }
+.kbd-hint kbd { font: 600 11px var(--sans); padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--surface); color: var(--ink-2); }
+
+/* ---------- print: a clean chart like the SongSelect PDF, in whatever key is showing ---------- */
+@media print {
+  @page { margin: 14mm 12mm; }
+  :root { --bg: #fff; --surface: #fff; --ink: #000; --ink-2: #222; --muted: #555; --line: #ccc; }
+  body { background: #fff; color: #000; }
+  .top, .foot, .toolbar, .capo-note:empty, .map, .map-notes, .sheet-nav, .back, .kbd-hint, .focus-bar { display: none !important; }
+  main { padding: 0; }
+  main.enter, main.enter .rise { animation: none !important; }
+  .sheet-head h1 { font: 700 20pt Verdana, sans-serif; margin: 0; }
+  .sheet-head .sub, .capo-note { font-size: 9pt; color: #333; }
+  .sheet-body { margin-top: 10pt; }
+  .sheet { font-size: 10.5pt !important; columns: 2; column-gap: 24pt; }
+  .sh-sec { border-left: 0; padding-left: 0; }
+  .sh-h { color: #000; }
+}
 
 @media (max-width: 640px) {
   .top { flex-wrap: wrap; gap: 10px; padding-top: 10px; padding-bottom: 10px; }
@@ -383,7 +382,13 @@ button.tgl[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
   .order .row { padding: 11px 16px; gap: 12px; }
   .strip { padding: 10px 16px 12px; }
   .tabs a { font-size: 13px; padding: 6px 2px; }
-  .toolbar { top: 98px; }
+  .toolbar { top: 98px; gap: 6px; padding: 6px; }
+  .ctl button, button.ctl, .sel select { min-height: 34px; padding: 6px 10px; }
+  .seg-ctl button { min-width: 34px; }
+  .key-now { min-width: 48px; font-size: 19px; }
+  .sel { padding-left: 6px; }
+  .kbd-hint { display: none; }
+  .stage-title { max-width: 100%; order: -1; width: 100%; padding: 2px 6px 4px; }
   .f-song { grid-template-columns: 24px 1fr auto; gap: 10px; padding: 14px 4px; }
   .f-song .f-sheet { display: none; }
   .focus-bar .hint { display: none; }

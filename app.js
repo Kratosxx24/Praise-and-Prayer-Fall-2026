@@ -312,6 +312,9 @@
             <button type="button" data-act="bigger" aria-label="Bigger text">A+</button>
           </div>
           <button type="button" class="ctl" data-act="reset" title="Back to the original key">Reset</button>
+          <span class="stage-title">${esc(s.title)} · ${esc(s.lead)}</span>
+          <button type="button" class="ctl" data-act="print" title="Print in the key shown">Print</button>
+          <button type="button" class="ctl tgl" data-act="stage" aria-pressed="${document.body.classList.contains("is-stage")}" title="Stage mode: just the sheet (F)">⛶ Stage</button>
         </div>
         <div class="capo-note" id="capo-note"></div>
 
@@ -325,6 +328,7 @@
           ${prev ? `<a class="btn" href="#sheet/${prev.id}">← ${esc(prev.title)}</a>` : "<span></span>"}
           ${next ? `<a class="btn" href="#sheet/${next.id}">${esc(next.title)} →</a>` : ""}
         </nav>
+        <p class="kbd-hint"><kbd>←</kbd> <kbd>→</kbd> previous / next song · <kbd>+</kbd> <kbd>−</kbd> transpose · <kbd>F</kbd> stage mode</p>
       </div>`;
   }
 
@@ -355,6 +359,8 @@
       if (act === "up" || act === "down") { v.tr = Math.max(-11, Math.min(11, v.tr + (act === "up" ? 1 : -1))); paint(true); }
       if (act === "nums") { v.nums = !v.nums; btn.setAttribute("aria-pressed", v.nums); paint(); }
       if (act === "bigger" || act === "smaller") { v.size = Math.max(.8, Math.min(1.8, +(v.size + (act === "bigger" ? .1 : -.1)).toFixed(1))); paint(); }
+      if (act === "stage") { const on = document.body.classList.toggle("is-stage"); btn.setAttribute("aria-pressed", on); store.set("stage", on ? "1" : null); }
+      if (act === "print") print();
       if (act === "reset") {
         Object.assign(v, { tr: 0, capo: 0, nums: false });
         document.getElementById("capo").value = 0;
@@ -465,6 +471,7 @@
       focus: focusView, sheets: sheetsIndex, home }[view]();
     app.classList.remove("enter"); void app.offsetWidth; app.classList.add("enter");
     document.body.classList.toggle("is-focus", view === "focus");
+    document.body.classList.toggle("is-stage", view === "sheet" && store.get("stage") === "1");
 
     const active = set ? set.id : view === "sheet" ? "sheets" : view === "focus" ? "home" : view;
     document.querySelectorAll("#tabs a").forEach((a) => {
@@ -498,7 +505,22 @@
   addEventListener("resize", moveInd);
 
   addEventListener("keydown", (e) => {
-    if (view !== "focus" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || /input|select|textarea/i.test(e.target.tagName)) return;
+    if (view === "sheet") {
+      const i = allSongs.findIndex((s) => location.hash === "#sheet/" + s.id);
+      const go = (s) => s && (location.hash = "sheet/" + s.id);
+      const click = (act) => document.querySelector(`#tb [data-act=${act}]`)?.click();
+      if (e.key === "ArrowRight") go(allSongs[i + 1]);
+      else if (e.key === "ArrowLeft") go(allSongs[i - 1]);
+      else if (e.key === "+" || e.key === "=") click("up");
+      else if (e.key === "-" || e.key === "_") click("down");
+      else if (e.key === "f" || e.key === "F") click("stage");
+      else if (e.key === "Escape" && document.body.classList.contains("is-stage")) click("stage");
+      else return;
+      e.preventDefault();
+      return;
+    }
+    if (view !== "focus") return;
     const total = document.querySelectorAll(".f-song").length;
     if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") { now = Math.min(total - 1, now + 1); markNow(); e.preventDefault(); }
     if (e.key === "ArrowLeft" || e.key === "ArrowUp") { now = Math.max(0, now - 1); markNow(); e.preventDefault(); }
@@ -518,6 +540,9 @@
   };
   media.addEventListener("change", syncTheme);
   syncTheme();
+
+  // Works offline once opened (and can be added to the home screen).
+  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 
   addEventListener("hashchange", () => render());
   render();

@@ -1,0 +1,14 @@
+{
+  "name": "P&P Fall 2026",
+  "short_name": "P&P",
+  "description": "Running order, lineups and chord sheets for Praise & Prayer.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#111111",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

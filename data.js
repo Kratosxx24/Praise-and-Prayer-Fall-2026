@@ -20,6 +20,10 @@ window.PANDP = {
     ]
   },
 
+  // Practice is every Saturday; events show a countdown on the home page.
+  practice: { weekday: 6, time: "7–10 PM", detail: "Set 1 7–8 · Set 2 8–9 · Set 3 9–10" },
+  events: [{ date: "2026-11-05", what: "Full rehearsal" }],
+
   schedule: [
     { when: "Saturdays", what: "Practice, 7–10 PM", detail: "Set 1: 7–8 · Set 2: 8–9 · Set 3: 9–10" },
     { when: "Thu, Nov 5", what: "Full rehearsal", detail: "" }
@@ -76,8 +80,10 @@ window.PANDP = {
         {
           title: "Set a Fire → Make Room", artist: "Jesus Culture → Community Worship", lead: "Becky → Ann", key: "E",
           chart: "",
-          note: "Go into prayer on Set a Fire: repeat the chorus chords while set members swap. Repeat the chorus before moving into Set 2.",
-          sections: []
+          note: "Go into prayer: repeat the chorus chords while set members swap. Repeat the chorus before moving into Set 2.",
+          sections: ["Chorus", { name: "Verse", note: "2x" }, "Chorus", { name: "Chorus chords", note: "“I want more” 2x" },
+                     { name: "Make Room Chorus", note: "Transition into Make Room" }, "Verse", { name: "Chorus", note: "2x" },
+                     "Instrumental", { name: "Bridge", note: "4x" }, "Chorus", "Ending"]
         }
       ]
     },
@@ -97,8 +103,11 @@ window.PANDP = {
         ["Slides", []]
       ],
       songs: [
-        { title: "Nothing Else", artist: "Cody Carnes", lead: "Alex", key: "A", confirmed: true, chart: "", sections: [] },
-        { title: "Center", artist: "Bethel Music", lead: "Matthew", key: "B", confirmed: true, chart: "", sections: [] },
+        { title: "Nothing Else", artist: "Cody Carnes", lead: "Alex", key: "A♭", confirmed: true, chart: "",
+          sections: ["Chorus", "Verse 1", "Verse 2", "Chorus", { name: "Bridge", note: "4x" }, "Chorus"] },
+        { title: "Center", artist: "Bethel Music", lead: "Matthew", key: "B", confirmed: true, chart: "",
+          sections: ["Intro", "Verse 1", "Chorus", "Verse 2", "Chorus 2", "Tag 1A", { name: "Bridge 1A", note: "2x" },
+                     { name: "Tag 1B", note: "2x. 2nd time: F♯ instead of D♯m at the end" }, { name: "Bridge 1B", note: "2x" }, "Chorus", "Tag 2"] },
         { interlude: "Prayer time" },
         { title: "Turn Your Eyes", artist: "Hillsong", lead: "Millou", key: "D", confirmed: true, chart: "", sections: [] },
         { title: "Be Thou My Vision", artist: "Shane & Shane", lead: "Becky", key: "D → E", note: "Key change from D to E.", chart: "", sections: [] }
@@ -121,11 +130,12 @@ window.PANDP = {
         ["Slides", []]
       ],
       songs: [
-        { title: "In Christ Alone", artist: "Keith Getty", lead: "Nathan", key: "G", chart: "", sections: [] },
+        { title: "In Christ Alone", artist: "Keith Getty", lead: "Nathan", key: "G", chart: "", sections: ["Verse", "Chorus", "Verse", "Chorus"] },
         { title: "We Crown You", artist: "Jeremy Riddle", lead: "Alex", key: "A♭", chart: "", sections: [] },
-        { title: "Jesus Be the Name", artist: "Elevation Worship", lead: "David", key: "A♭", chart: "", sections: [] },
+        { title: "Jesus Be the Name", artist: "Elevation Worship", lead: "David", key: "A♭", chart: "",
+          sections: ["Verse 1", "Chorus 1", "Verse 2", "Chorus 1", "Instrumental 1", "Bridge", "Chorus 2", "Chorus 3", "Chorus 4"] },
         { title: "You Are My All in All", artist: "Dennis Jernigan", lead: "David", key: "A♭", chart: "", sections: [] },
-        { title: "Yet Not I but Through Christ in Me", artist: "CityAlight", lead: "Millou", key: "D♭", chart: "", sections: [] }
+        { title: "Yet Not I but Through Christ in Me", artist: "CityAlight", lead: "Millou", key: "D♭", chart: "", sections: ["Verse 1", "Verse 2", "Verse 3", "Verse 4"] }
       ]
     }
   ]

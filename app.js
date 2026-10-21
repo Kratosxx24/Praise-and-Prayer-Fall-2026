@@ -7,6 +7,16 @@
   const baseName = (n) => n.replace(/\s*\(.*\)\s*$/, "").trim();
   const personLink = (n) => `<a class="person" href="#people/${encodeURIComponent(baseName(n))}">${esc(n)}</a>`;
   const songs = (set) => set.songs.filter((s) => !s.interlude);
+  const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  for (const set of D.sets) songs(set).forEach((s, i) => Object.assign(s, { id: slug(s.title), set, n: i + 1 }));
+  const allSongs = D.sets.flatMap(songs);
+
+  // Saved in this browser only. Sheets can hold licensed lyrics, so they never go into the public repo.
+  const store = {
+    get(k) { try { return localStorage.getItem("pp:" + k); } catch (e) { return null; } },
+    set(k, v) { try { v == null ? localStorage.removeItem("pp:" + k) : localStorage.setItem("pp:" + k, v); } catch (e) {} },
+    all() { const o = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith("pp:")) o[k] = localStorage.getItem(k); } } catch (e) {} return o; },
+  };
 
   // Every instrument has one color, used everywhere it appears (CSS: .r-<key>).
   const ROLE_ORDER = ["vocals", "guitar", "electric", "piano", "cello", "bass", "cajon", "sound", "slides"];
@@ -37,20 +47,66 @@
     return out;
   }
 
-  // ---------- dates ----------
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const fmt = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  const daysAway = (d) => Math.round((d - today) / 864e5);
-  const inDays = (n) => n === 0 ? "Today" : n === 1 ? "Tomorrow" : `In ${n} days`;
-  function upcoming() {
-    const next = new Date(today);
-    next.setDate(today.getDate() + ((D.practice.weekday - today.getDay() + 7) % 7));
-    const items = [{ date: next, what: "Practice", detail: `${D.practice.time} · ${D.practice.detail}` }];
-    for (const e of D.events) {
-      const d = new Date(e.date + "T00:00:00");
-      if (d >= today) items.push({ date: d, what: e.what, detail: "", big: true });
+  // ---------- music: chords, transpose, numbers ----------
+  const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+  const EXTRA = { Cb: 11, Fb: 4, "E#": 5, "B#": 0 };
+  const mod = (n) => ((n % 12) + 12) % 12;
+  const norm = (s) => s.replace(/♭/g, "b").replace(/♯/g, "#");
+  const pcOf = (n) => { n = norm(n); return n in EXTRA ? EXTRA[n] : SHARP.includes(n) ? SHARP.indexOf(n) : FLAT.indexOf(n); };
+  const flatKey = (p) => [5, 10, 3, 8, 1].includes(mod(p)); // F B♭ E♭ A♭ D♭
+  const noteName = (p, flats) => (flats ? FLAT : SHARP)[mod(p)];
+  const pretty = (s) => s.replace(/([A-G])#/g, "$1♯").replace(/([A-G])b/g, "$1♭");
+  const DEG = ["1", "♭2", "2", "♭3", "3", "4", "♯4", "5", "♭6", "6", "♭7", "7"];
+  const CHORD = /^([A-G][#b]?)((?:maj|min|dim|aug|sus|add|m|M|[0-9]|[#b+°ø()^-])*)(?:\/([A-G][#b]?))?$/;
+  const isChord = (t) => CHORD.test(norm(t)) || /^N\.?C\.?$/i.test(t);
+  const keyPcOf = (song) => pcOf(song.key.split("→")[0].trim());
+
+  // ctx: { keyPc, shift (semitones applied to what's written), flats, nums }
+  function chordHTML(raw, ctx) {
+    const m = norm(raw).match(CHORD);
+    if (!m) return esc(raw);
+    const [, root, qual, bass] = m;
+    const name = (n) => ctx.nums ? DEG[mod(pcOf(n) - ctx.keyPc)] : pretty(noteName(pcOf(n) + ctx.shift, ctx.flats));
+    return `${name(root)}${qual ? `<span class="q">${esc(qual)}</span>` : ""}${bass ? `<span class="sl">/${name(bass)}</span>` : ""}`;
+  }
+
+  const BAR = /^[|:.\]\[]+$|^\|\|?:?$|^:?\|\|?$/;
+  const REP = /^(x\d+|\d+x|\(x?\d+x?\)|-|–|\/|%|N\.?C\.?)$/i;
+  function isChordLine(line) {
+    const toks = line.replace(/[\[\]]/g, " ").trim().split(/\s+/);
+    return toks.some(isChord) && toks.every((t) => isChord(t) || BAR.test(t) || REP.test(t));
+  }
+
+  // Sheet format: "# Verse 1" = section, "[A]lyric [D]words" = chords over lyrics,
+  // "| A | D | E |" = chord-only line, anything else = a lyric/comment line.
+  function sheetHTML(text, ctx) {
+    const out = [];
+    let open = false;
+    for (const raw of text.split("\n")) {
+      const line = raw.replace(/\s+$/, "");
+      const h = line.match(/^\s*#+\s*(.+)$/) || line.match(/^\s*\{\s*(?:c:|comment:)?\s*(.+?)\s*\}$/i);
+      if (h) {
+        if (open) out.push("</section>");
+        const sec = section(h[1].trim());
+        out.push(`<section class="sh-sec t-${sec.type}" data-sec="${esc(sec.name.toLowerCase())}"><h3 class="sh-h">${esc(sec.name)}${sec.x > 1 ? `<span class="x">×${sec.x}</span>` : ""}</h3>`);
+        open = true;
+      } else if (!line.trim()) {
+        out.push(`<div class="sh-gap"></div>`);
+      } else if (isChordLine(line)) {
+        out.push(`<div class="sh-bars">${line.replace(/[\[\]]/g, " ").trim().split(/\s+/).map((t) =>
+          BAR.test(t) ? `<span class="bar">${esc(t)}</span>` : isChord(t) ? `<b class="ch">${chordHTML(t, ctx)}</b>` : `<span class="rep">${esc(t)}</span>`).join("")}</div>`);
+      } else if (line.includes("[")) {
+        const parts = line.split(/\[([^\]]*)\]/);
+        let html = parts[0] ? `<span class="seg"><b class="ch"></b><span class="ly">${esc(parts[0])}</span></span>` : "";
+        for (let i = 1; i < parts.length; i += 2) html += `<span class="seg"><b class="ch">${chordHTML(parts[i], ctx)}</b><span class="ly">${parts[i + 1] ? esc(parts[i + 1]) : "&nbsp;"}</span></span>`;
+        out.push(`<div class="sh-line">${html}</div>`);
+      } else {
+        out.push(`<div class="sh-ly${/^\s*\(/.test(line) ? " cmt" : ""}">${esc(line)}</div>`);
+      }
     }
-    return items.sort((a, b) => a.date - b.date);
+    if (open) out.push("</section>");
+    return out.join("");
   }
 
   // ---------- views ----------
@@ -62,29 +118,23 @@
 
   // Running order: every set, songs in order. Sets sit side by side on wide screens.
   function home() {
-    const total = D.sets.reduce((n, s) => n + songs(s).length, 0);
+    const total = allSongs.length;
     return `
-      <section class="page-head">
-        <div class="label">${esc(D.title)} · ${esc(D.term)}</div>
-        <h1>Running order</h1>
-        <div class="sub">${D.sets.length} sets · ${total} songs, in the order we play them</div>
+      <section class="page-head row">
+        <div>
+          <div class="label">${esc(D.title)} · ${esc(D.term)}</div>
+          <h1>Running order</h1>
+          <div class="sub">${D.sets.length} sets · ${total} songs, in the order we play them</div>
+        </div>
+        <a class="btn primary focus-btn" href="#focus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Focus mode</a>
       </section>
-      <div class="when">${upcoming().map((u) => `
-        <div class="when-item${u.big ? " big" : ""}">
-          <span class="when-in">${inDays(daysAway(u.date))}</span>
-          <span class="when-what">${esc(u.what)} · ${fmt(u.date)}</span>
-          ${u.detail ? `<span class="when-detail">${esc(u.detail)}</span>` : ""}
-        </div>`).join("")}
-      </div>
       <div class="order-grid">
-      ${D.sets.map((set, i) => {
-        let n = 0;
-        return `
-        <section class="order-set s${i + 1}">
+      ${D.sets.map((set, i) => `
+        <section class="order-set rise" style="--i:${i}">
           <a class="order-set-head" href="#${set.id}">
             <span class="set-no">${i + 1}</span>
             <span class="set-name">
-              <span class="label">${esc(set.name)} · ${songs(set).length} songs · ${esc(set.practice.replace(/^Saturdays\s*/, "Sat "))}</span>
+              <span class="label">${esc(set.name)} · ${songs(set).length} songs</span>
               <h2>${esc(set.title)}</h2>
             </span>
             <span class="go" aria-hidden="true">→</span>
@@ -92,13 +142,43 @@
           <ol class="order">
             ${set.songs.map((s) => s.interlude
               ? `<li class="gap">${esc(s.interlude)}</li>`
-              : `<li><span class="n">${++n}</span><span class="tm"><span class="t">${esc(s.title)}</span><span class="m"><b>${esc(s.lead)}</b> · ${esc(s.artist)}</span></span><span class="k">${esc(s.key)}</span></li>`).join("")}
+              : `<li><a class="row" href="#sheet/${s.id}"><span class="n">${s.n}</span><span class="tm"><span class="t">${esc(s.title)}</span><span class="m"><b>${esc(s.lead)}</b> · ${esc(s.artist)}</span></span><span class="k">${esc(s.key)}</span></a></li>`).join("")}
           </ol>
           ${lineupStrip(set)}
-        </section>`;
-      }).join("")}
+        </section>`).join("")}
       </div>
       ${legend()}`;
+  }
+
+  // Focus: the running order only, big, for reading at a glance. Tap a song (or ← →) to mark where you are.
+  let now = -1;
+  function focusView() {
+    let g = 0;
+    return `
+      <div class="focus">
+        <div class="focus-bar">
+          <a class="btn" href="#home">✕ Exit</a>
+          <span class="hint">Tap a song to mark where we are · ← → to move · Esc to exit</span>
+        </div>
+        ${D.sets.map((set, i) => `
+          <section class="focus-set rise" style="--i:${i}">
+            <h2><span class="set-no">${i + 1}</span>${esc(set.title)}</h2>
+            <ol>
+              ${set.songs.map((s) => s.interlude
+                ? `<li class="gap">${esc(s.interlude)}</li>`
+                : `<li class="f-song" data-g="${g++}"><span class="n">${s.n}</span><span class="t">${esc(s.title)}<small>${esc(s.lead)}</small></span><span class="k">${esc(s.key)}</span><a class="f-sheet" href="#sheet/${s.id}" aria-label="Open sheet for ${esc(s.title)}">Sheet</a></li>`).join("")}
+            </ol>
+          </section>`).join("")}
+      </div>`;
+  }
+  function markNow() {
+    document.querySelectorAll(".f-song").forEach((li) => {
+      const g = +li.dataset.g;
+      li.classList.toggle("now", g === now);
+      li.classList.toggle("done", now >= 0 && g < now);
+    });
+    const cur = document.querySelector(".f-song.now");
+    if (cur) cur.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   function legend() {
@@ -107,25 +187,22 @@
     return `<div class="legend"><span class="label">Colors</span>${ROLE_ORDER.filter((k) => used.has(k)).map((k) => roleChip(names[k])).join("")}</div>`;
   }
 
-  function songMap(list) {
-    if (!list.length) return `<p class="flow-empty">Arrangement not posted yet.</p>`;
+  function songMap(list, opts = {}) {
+    if (!list.length) return opts.compact ? "" : `<p class="flow-empty">Arrangement not posted yet.</p>`;
     const secs = collapse(list);
     const notes = secs.map((s, i) => [i + 1, s]).filter(([, s]) => s.note);
     return `
-      <ol class="map">${secs.map((s, i) => `
-        <li class="blk t-${s.type}"><span class="blk-n">${i + 1}</span>${esc(s.name)}${s.x > 1 ? `<span class="x">×${s.x}</span>` : ""}${s.note ? `<sup>*</sup>` : ""}${s.dynamics ? `<span class="dyn">${esc(s.dynamics)}</span>` : ""}</li>`).join("")}
+      <ol class="map${opts.compact ? " compact" : ""}">${secs.map((s, i) => `
+        <li class="blk t-${s.type}" data-jump="${esc(s.name.toLowerCase())}"><span class="blk-n">${i + 1}</span>${esc(s.name)}${s.x > 1 ? `<span class="x">×${s.x}</span>` : ""}${s.note ? `<sup>*</sup>` : ""}${s.dynamics ? `<span class="dyn">${esc(s.dynamics)}</span>` : ""}</li>`).join("")}
       </ol>
       ${notes.length ? `<ul class="map-notes">${notes.map(([n, s]) => `<li><span class="blk-n">${n}</span><b>${esc(s.name)}</b> ${esc(s.note)}</li>`).join("")}</ul>` : ""}`;
   }
 
-  function song(s, n) {
-    const chart = s.chart
-      ? `<a class="btn primary" href="${esc(s.chart)}" target="_blank" rel="noopener">Open chart ↗</a>`
-      : `<span class="btn" aria-disabled="true">Chart coming soon</span>`;
+  function song(s, i) {
     return `
-      <article class="card song">
+      <article class="card song rise" style="--i:${i}">
         <div class="song-top">
-          <div class="song-num">${n}</div>
+          <div class="song-num">${s.n}</div>
           <div class="song-main">
             <h3>${esc(s.title)}</h3>
             <div class="artist">${esc(s.artist)}</div>
@@ -138,16 +215,19 @@
         </div>
         ${s.note ? `<p class="song-note">${esc(s.note)}</p>` : ""}
         ${songMap(s.sections || [])}
-        <div class="song-actions">${chart}</div>
+        <div class="song-actions">
+          <a class="btn primary" href="#sheet/${s.id}">Open sheet</a>
+          ${s.chart ? `<a class="btn" href="${esc(s.chart)}" target="_blank" rel="noopener">PDF chart ↗</a>` : ""}
+        </div>
       </article>`;
   }
 
   function setView(set) {
-    let n = 0;
     const i = D.sets.indexOf(set);
+    let c = 0;
     return `
-      <section class="page-head s${i + 1}">
-        <div class="label"><span class="dot-no">${i + 1}</span>${esc(set.name)} · ${songs(set).length} songs · ${esc(set.practice)}</div>
+      <section class="page-head">
+        <div class="label"><span class="dot-no">${i + 1}</span>${esc(set.name)} · ${songs(set).length} songs</div>
         <h1>${esc(set.title)}</h1>
         ${set.subtitle ? `<div class="sub">${esc(set.subtitle)}</div>` : ""}
       </section>
@@ -158,7 +238,7 @@
           <div class="roster">
             ${set.roles.map(([role, who]) => `
               <div class="r-${roleKey(role)}${who.length ? "" : " open"}">
-                <div class="role"><i></i>${esc(role)}</div>
+                <div class="role">${esc(role)}</div>
                 <div class="who">${who.length ? who.map(personLink).join(", ") : "Open"}</div>
               </div>`).join("")}
           </div>
@@ -167,10 +247,197 @@
             `<span class="blk t-${t}">${{ verse: "Verse", chorus: "Chorus", bridge: "Bridge", tag: "Tag / Vamp", other: "Other" }[t]}</span>`).join("")}</div>
         </aside>
         <div class="songs">
-          ${set.songs.map((s) => s.interlude ? `<div class="interlude">${esc(s.interlude)}</div>` : song(s, ++n)).join("")}
+          ${set.songs.map((s) => s.interlude ? `<div class="interlude">${esc(s.interlude)}</div>` : song(s, c++)).join("")}
         </div>
       </div>`;
   }
+
+  // ---------- chord sheets ----------
+
+  const sheetText = (s) => store.get("sheet:" + s.id) ?? s.sheet ?? "";
+  const template = (s) => {
+    const names = [...new Set((s.sections || []).map((x) => section(x).name))];
+    return (names.length ? names : ["Verse 1", "Chorus", "Bridge"]).map((n) => `# ${n}\n`).join("\n");
+  };
+  const viewState = (s) => {
+    let v = {};
+    try { v = JSON.parse(store.get("view:" + s.id) || "{}"); } catch (e) {}
+    return { tr: 0, capo: 0, nums: false, size: 1, ...v };
+  };
+
+  function sheetView(s) {
+    const v = viewState(s);
+    const empty = !sheetText(s).trim();
+    const keyPc = keyPcOf(s);
+    const idx = allSongs.indexOf(s);
+    const prev = allSongs[idx - 1], next = allSongs[idx + 1];
+    const diatonic = [[0, ""], [2, "m"], [4, "m"], [5, ""], [7, ""], [9, "m"]].map(([st, q], i) =>
+      [["1", "2", "3", "4", "5", "6"][i], noteName(keyPc + st, flatKey(keyPc)) + q]);
+    return `
+      <div class="sheet-page">
+        <div class="sheet-head">
+          <a class="back" href="#${s.set.id}">← ${esc(s.set.name)} · Song ${s.n}</a>
+          <h1>${esc(s.title)}</h1>
+          <div class="sub">${esc(s.artist)} · Lead ${esc(s.lead)} · Written in ${esc(s.key)}</div>
+        </div>
+
+        <div class="toolbar" id="tb">
+          <div class="ctl seg-ctl" role="group" aria-label="Transpose">
+            <button type="button" data-act="down" aria-label="Transpose down">−</button>
+            <span class="key-now" id="key-now"></span>
+            <button type="button" data-act="up" aria-label="Transpose up">+</button>
+          </div>
+          <label class="ctl sel">Capo
+            <select id="capo">${[0, 1, 2, 3, 4, 5, 6, 7].map((c) => `<option value="${c}"${c === v.capo ? " selected" : ""}>${c || "None"}</option>`).join("")}</select>
+          </label>
+          <button type="button" class="ctl tgl" data-act="nums" aria-pressed="${v.nums}" title="Nashville numbers">1·4·5</button>
+          <div class="ctl seg-ctl" role="group" aria-label="Text size">
+            <button type="button" data-act="smaller" aria-label="Smaller text">A−</button>
+            <button type="button" data-act="bigger" aria-label="Bigger text">A+</button>
+          </div>
+          <button type="button" class="ctl tgl" data-act="edit" aria-pressed="${empty}">✎ Edit</button>
+        </div>
+        <div class="capo-note" id="capo-note"></div>
+
+        ${songMap(s.sections || [], { compact: true })}
+
+        <div class="sheet-body${empty ? " editing" : ""}" id="sheet-body">
+          <div class="sheet" id="sheet" style="--fs:${v.size}"></div>
+          <div class="editor" id="editor">
+            <div class="ed-row"><span class="label">Insert chord</span>${diatonic.map(([d, c]) => `<button type="button" class="ins" data-ins="[${c}]"><small>${d}</small>${pretty(c)}</button>`).join("")}<button type="button" class="ins" data-ins=" | "><small>bar</small>|</button></div>
+            <div class="ed-row"><span class="label">Insert section</span>${[...new Set((s.sections || []).map((x) => section(x).name))].map((n) => `<button type="button" class="ins sec t-${section(n).type}" data-ins="\n# ${esc(n)}\n">${esc(n)}</button>`).join("") || `<span class="muted">No arrangement yet</span>`}</div>
+            <textarea id="src" spellcheck="false" placeholder="# Verse 1&#10;| ${pretty(diatonic[0][1])} | ${pretty(diatonic[3][1])} | ${pretty(diatonic[5][1])} | ${pretty(diatonic[4][1])} |&#10;[${diatonic[0][1]}]Lyrics go [${diatonic[3][1]}]under chords">${esc(sheetText(s) || template(s))}</textarea>
+            <div class="ed-help">
+              <b># Chorus</b> starts a section · <b>[${pretty(diatonic[0][1])}]</b> puts a chord over the next word · a line of only chords and <b>|</b> is a chord line.
+              Write it in ${esc(s.key)}; use − / + to transpose. Saves in this browser only.
+              <button type="button" class="linkish" data-act="reset">${s.sheet ? "Reset to published" : "Clear"}</button>
+            </div>
+          </div>
+        </div>
+
+        <nav class="sheet-nav">
+          ${prev ? `<a class="btn" href="#sheet/${prev.id}">← ${esc(prev.title)}</a>` : "<span></span>"}
+          ${next ? `<a class="btn" href="#sheet/${next.id}">${esc(next.title)} →</a>` : ""}
+        </nav>
+      </div>`;
+  }
+
+  function wireSheet(s) {
+    const v = viewState(s);
+    const keyPc = keyPcOf(s);
+    const src = document.getElementById("src");
+    const sheet = document.getElementById("sheet");
+    const body = document.getElementById("sheet-body");
+    const save = () => store.set("view:" + s.id, JSON.stringify(v));
+
+    function paint(pop) {
+      const sounding = keyPc + v.tr, shapes = sounding - v.capo;
+      const ctx = { keyPc, shift: v.tr - v.capo, flats: flatKey(shapes), nums: v.nums };
+      const text = src.value;
+      sheet.innerHTML = text.trim() ? sheetHTML(text, ctx) : `<p class="flow-empty">Nothing here yet. Start typing in the editor.</p>`;
+      sheet.style.setProperty("--fs", v.size);
+      const k = document.getElementById("key-now");
+      k.innerHTML = `<small>${v.tr ? (v.tr > 0 ? "+" : "") + v.tr : "Key"}</small>${pretty(noteName(sounding, flatKey(sounding)))}`;
+      if (pop) { k.classList.remove("pop"); void k.offsetWidth; k.classList.add("pop"); }
+      document.getElementById("capo-note").innerHTML = v.capo
+        ? `Capo ${v.capo} · play <b>${pretty(noteName(shapes, flatKey(shapes)))}</b> shapes, sounds in ${pretty(noteName(sounding, flatKey(sounding)))}`
+        : v.nums ? `Numbers relative to ${esc(s.key)}` : "";
+    }
+
+    document.getElementById("tb").onclick = (e) => {
+      const act = e.target.closest("[data-act]")?.dataset.act;
+      if (!act) return;
+      if (act === "up" || act === "down") { v.tr = Math.max(-11, Math.min(11, v.tr + (act === "up" ? 1 : -1))); paint(true); }
+      if (act === "nums") { v.nums = !v.nums; e.target.closest("button").setAttribute("aria-pressed", v.nums); paint(); }
+      if (act === "bigger" || act === "smaller") { v.size = Math.max(.8, Math.min(1.8, +(v.size + (act === "bigger" ? .1 : -.1)).toFixed(1))); paint(); }
+      if (act === "edit") {
+        const on = body.classList.toggle("editing");
+        e.target.closest("button").setAttribute("aria-pressed", on);
+        if (on) src.focus();
+      }
+      save();
+    };
+    document.getElementById("capo").onchange = (e) => { v.capo = +e.target.value; paint(); save(); };
+
+    src.oninput = () => {
+      // Untouched template counts as empty, so the sheet doesn't show bare headings as "saved".
+      store.set("sheet:" + s.id, src.value === template(s) ? null : src.value);
+      paint();
+    };
+    document.getElementById("editor").onclick = (e) => {
+      const ins = e.target.closest("[data-ins]");
+      if (ins) {
+        const t = ins.dataset.ins, a = src.selectionStart, b = src.selectionEnd;
+        src.setRangeText(t, a, b, "end");
+        src.focus();
+        src.oninput();
+      }
+      if (e.target.closest("[data-act=reset]") && confirm(s.sheet ? "Replace your version with the published sheet?" : "Clear this sheet?")) {
+        store.set("sheet:" + s.id, null);
+        src.value = s.sheet || template(s);
+        paint();
+      }
+    };
+    // Song map blocks jump to that section of the sheet.
+    document.querySelectorAll(".map.compact .blk").forEach((b) => b.onclick = () => {
+      const want = b.dataset.jump;
+      const secs = [...sheet.querySelectorAll(".sh-sec")];
+      const hit = secs.find((x) => x.dataset.sec === want) || secs.find((x) => x.dataset.sec.startsWith(want.split(" ")[0]));
+      if (hit) { hit.scrollIntoView({ behavior: "smooth", block: "start" }); hit.classList.remove("flash"); void hit.offsetWidth; hit.classList.add("flash"); }
+    });
+    paint();
+  }
+
+  function sheetsIndex() {
+    const status = (s) => store.get("sheet:" + s.id) ? ["mine", "Your sheet"] : s.sheet ? ["pub", "Published"] : ["none", "Not started"];
+    const mine = allSongs.filter((s) => store.get("sheet:" + s.id)).length;
+    return `
+      <section class="page-head row">
+        <div>
+          <div class="label">Chord sheets</div>
+          <h1>Sheets</h1>
+          <div class="sub">${mine} of ${allSongs.length} started on this device. Build, transpose, capo, numbers.</div>
+        </div>
+        <div class="head-actions">
+          <button type="button" class="btn" id="export">Back up sheets</button>
+          <label class="btn">Restore<input type="file" id="import" accept="application/json" hidden></label>
+        </div>
+      </section>
+      <div class="order-grid">
+        ${D.sets.map((set, i) => `
+          <section class="order-set rise" style="--i:${i}">
+            <a class="order-set-head" href="#${set.id}"><span class="set-no">${i + 1}</span><span class="set-name"><span class="label">${esc(set.name)}</span><h2>${esc(set.title)}</h2></span></a>
+            <ol class="order">${songs(set).map((s) => {
+              const [cls, label] = status(s);
+              return `<li><a class="row" href="#sheet/${s.id}"><span class="n">${s.n}</span><span class="tm"><span class="t">${esc(s.title)}</span><span class="m"><span class="st st-${cls}">${label}</span></span></span><span class="k">${esc(s.key)}</span></a></li>`;
+            }).join("")}</ol>
+          </section>`).join("")}
+      </div>
+      <p class="note-small wide">Sheets you write are saved in this browser only, so they're not on the public site (song lyrics are licensed). Use <b>Back up sheets</b> to save a file you can restore on another device.</p>`;
+  }
+
+  function wireSheetsIndex() {
+    document.getElementById("export").onclick = () => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(store.all(), null, 2)], { type: "application/json" }));
+      a.download = `pandp-sheets-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+    document.getElementById("import").onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try {
+        const data = JSON.parse(await f.text());
+        const keys = Object.keys(data).filter((k) => k.startsWith("pp:"));
+        if (!keys.length || !confirm(`Restore ${keys.length} saved item(s)? This replaces sheets with the same song.`)) return;
+        for (const k of keys) store.set(k.slice(3), String(data[k]));
+        render();
+      } catch (err) { alert("That file isn't a sheets backup."); }
+    };
+  }
+
+  // ---------- people ----------
 
   // Everyone, with every set + role they're on, built from the set rosters.
   function roster() {
@@ -194,7 +461,7 @@
     const all = roster();
     const open = [];
     for (const set of D.sets) for (const [role, who] of set.roles) if (!who.length) open.push([set, role]);
-    const leads = (name) => D.sets.flatMap((s) => songs(s).filter((x) => x.lead.split("→").some((l) => baseName(l.trim()) === name)).map((x) => x.title));
+    const leads = (name) => allSongs.filter((x) => x.lead.split("→").some((l) => baseName(l.trim()) === name)).map((x) => x.title);
     return `
       <section class="page-head">
         <div class="label">Team</div>
@@ -202,9 +469,9 @@
         <div class="sub">${all.length} people across ${D.sets.length} sets. Find your name, read across.</div>
       </section>
       <input class="search" id="search" type="search" placeholder="Find your name…" value="${esc(focus || "")}" autocomplete="off">
-      <div class="matrix-wrap card">
+      <div class="matrix-wrap card rise">
         <table class="matrix" id="people">
-          <thead><tr><th>Name</th>${D.sets.map((s, i) => `<th><a href="#${s.id}"><span class="dot-no s${i + 1}">${i + 1}</span>${esc(s.name)}</a></th>`).join("")}<th class="leads-h">Leads</th></tr></thead>
+          <thead><tr><th>Name</th>${D.sets.map((s, i) => `<th><a href="#${s.id}"><span class="dot-no">${i + 1}</span>${esc(s.name)}</a></th>`).join("")}<th class="leads-h">Leads</th></tr></thead>
           <tbody>
           ${all.map(([name, bySet]) => `
             <tr class="${focus && name === focus ? "hl" : ""}" data-name="${esc(name.toLowerCase())}">
@@ -221,27 +488,30 @@
 
   // ---------- routing ----------
 
+  let view = "home";
   function render() {
     const hash = decodeURIComponent(location.hash.slice(1)) || "home";
-    const [view, arg] = hash.split("/");
-    const set = D.sets.find((s) => s.id === view);
+    const [v, arg] = hash.split("/");
+    const set = D.sets.find((s) => s.id === v);
+    const sheetSong = v === "sheet" && allSongs.find((s) => s.id === arg);
+    view = set ? "set" : sheetSong ? "sheet" : ["people", "focus", "sheets"].includes(v) ? v : "home";
 
-    if (set) app.innerHTML = setView(set);
-    else if (view === "people") app.innerHTML = peopleView(arg);
-    else app.innerHTML = home();
+    app.innerHTML = { set: () => setView(set), sheet: () => sheetView(sheetSong), people: () => peopleView(arg),
+      focus: focusView, sheets: sheetsIndex, home }[view]();
+    app.classList.remove("enter"); void app.offsetWidth; app.classList.add("enter");
+    document.body.classList.toggle("is-focus", view === "focus");
 
-    const active = set ? set.id : view === "people" ? "people" : "home";
+    const active = set ? set.id : view === "sheet" ? "sheets" : view === "focus" ? "home" : view;
     document.querySelectorAll("#tabs a").forEach((a) => {
       if (a.dataset.view === active) a.setAttribute("aria-current", "page");
       else a.removeAttribute("aria-current");
     });
-    document.title = `${set ? set.name + " · " : view === "people" ? "People · " : ""}P&P ${D.term}`;
+    moveInd();
+    document.title = `${set ? set.name + " · " : sheetSong ? sheetSong.title + " · " : view !== "home" ? view[0].toUpperCase() + view.slice(1) + " · " : ""}P&P ${D.term}`;
 
-    wire();
-    window.scrollTo(0, 0);
-  }
-
-  function wire() {
+    if (view === "sheet") wireSheet(sheetSong);
+    if (view === "sheets") wireSheetsIndex();
+    if (view === "focus") { document.querySelectorAll(".f-song").forEach((li) => li.onclick = (e) => { if (!e.target.closest("a")) { now = +li.dataset.g === now ? -1 : +li.dataset.g; markNow(); } }); markNow(); }
     const search = document.getElementById("search");
     if (search) {
       const filter = () => {
@@ -251,7 +521,25 @@
       search.oninput = filter;
       filter();
     }
+    window.scrollTo(0, 0);
   }
+
+  // Sliding pill behind the active tab.
+  const ind = document.querySelector(".tab-ind");
+  function moveInd() {
+    const a = document.querySelector("#tabs a[aria-current]");
+    ind.style.opacity = a ? 1 : 0;
+    if (a) { ind.style.width = a.offsetWidth + "px"; ind.style.transform = `translateX(${a.offsetLeft}px)`; }
+  }
+  addEventListener("resize", moveInd);
+
+  addEventListener("keydown", (e) => {
+    if (view !== "focus" || e.metaKey || e.ctrlKey || e.altKey) return;
+    const total = document.querySelectorAll(".f-song").length;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") { now = Math.min(total - 1, now + 1); markNow(); e.preventDefault(); }
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") { now = Math.max(0, now - 1); markNow(); e.preventDefault(); }
+    if (e.key === "Escape") location.hash = "home";
+  });
 
   // ---------- light / dark ----------
   // No saved choice = follow the device setting.
@@ -267,6 +555,7 @@
   media.addEventListener("change", syncTheme);
   syncTheme();
 
-  window.addEventListener("hashchange", render);
+  addEventListener("hashchange", render);
   render();
+  document.fonts?.ready.then(moveInd);
 })();

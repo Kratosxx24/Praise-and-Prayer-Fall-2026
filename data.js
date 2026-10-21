@@ -4,6 +4,7 @@
 // Songs:  lead = who leads it, key = key it's played in, chart = path or link to the
 //         chord chart (leave "" until it's ready), sections = arrangement in order.
 //         A section can be a plain string or { name, note, dynamics }.
+//         sheet = optional published chord sheet (chords only, no lyrics: the site is public).
 // Sets:   roles list who is on what. "(g)" after a vocalist = sings while playing guitar.
 
 window.PANDP = {
@@ -19,10 +20,6 @@ window.PANDP = {
       "The third time he said to him, “Simon son of John, do you love me?” Peter was hurt because Jesus asked him the third time, “Do you love me?” He said, “Lord, you know all things; you know that I love you.”"
     ]
   },
-
-  // Practice is every Saturday; events show a countdown on the home page.
-  practice: { weekday: 6, time: "7–10 PM", detail: "Set 1 7–8 · Set 2 8–9 · Set 3 9–10" },
-  events: [{ date: "2026-11-05", what: "Full rehearsal" }],
 
   schedule: [
     { when: "Saturdays", what: "Practice, 7–10 PM", detail: "Set 1: 7–8 · Set 2: 8–9 · Set 3: 9–10" },

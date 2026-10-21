@@ -11,28 +11,35 @@
 
   // ---------- views ----------
 
-  // Running order: every set, songs in order.
+  // Running order: every set, songs in order. Sets sit side by side on wide screens.
   function home() {
+    const total = D.sets.reduce((n, s) => n + songs(s).length, 0);
     return `
-      <section class="order-head">
+      <section class="page-head">
         <h1>Running order</h1>
-        <div class="sub">${D.sets.length} sets · ${D.sets.reduce((n, s) => n + songs(s).length, 0)} songs</div>
+        <div class="sub">${D.sets.length} sets · ${total} songs</div>
       </section>
-      ${D.sets.map((set) => {
+      <div class="order-grid">
+      ${D.sets.map((set, i) => {
         let n = 0;
         return `
         <section class="order-set">
-          <div class="order-set-head">
-            <h2>${esc(set.name)} <span>· ${esc(set.title)}</span></h2>
-            <a href="#${set.id}">Details →</a>
-          </div>
+          <a class="order-set-head" href="#${set.id}">
+            <span class="set-no">${i + 1}</span>
+            <span class="set-name">
+              <span class="label">${esc(set.name)} · ${songs(set).length} songs</span>
+              <h2>${esc(set.title)}</h2>
+            </span>
+            <span class="go" aria-hidden="true">→</span>
+          </a>
           <ol class="order">
             ${set.songs.map((s) => s.interlude
               ? `<li class="gap">${esc(s.interlude)}</li>`
-              : `<li><span class="n">${++n}</span><span><div class="t">${esc(s.title)}</div><div class="m">${esc(s.lead)} · ${esc(s.artist)}</div></span><span class="k">${esc(s.key)}</span></li>`).join("")}
+              : `<li><span class="n">${++n}</span><span class="tm"><span class="t">${esc(s.title)}</span><span class="m">${esc(s.lead)} · ${esc(s.artist)}</span></span><span class="k">${esc(s.key)}</span></li>`).join("")}
           </ol>
         </section>`;
-      }).join("")}`;
+      }).join("")}
+      </div>`;
   }
 
   function flow(sections) {
@@ -70,24 +77,23 @@
   function setView(set) {
     let n = 0;
     return `
-      <section class="set-head">
-        <div class="label">${esc(set.name)}</div>
+      <section class="page-head">
+        <div class="label">${esc(set.name)} · ${songs(set).length} songs</div>
         <h1>${esc(set.title)}</h1>
         ${set.subtitle ? `<div class="sub">${esc(set.subtitle)}</div>` : ""}
-        <div class="set-meta">
-          <span class="chip">${songs(set).length} songs</span>
-        </div>
       </section>
 
-      <h2 class="section-title">Who's on what</h2>
-      <div class="roster">
-        ${set.roles.map(([role, who]) => `<div><div class="role">${esc(role)}</div><div class="who">${people(who)}</div></div>`).join("")}
-      </div>
-      <p class="note-small">(g) = sings while playing guitar.</p>
-
-      <h2 class="section-title">Songs</h2>
-      <div class="songs">
-        ${set.songs.map((s) => s.interlude ? `<div class="interlude">${esc(s.interlude)}</div>` : song(s, ++n)).join("")}
+      <div class="set-layout">
+        <aside class="set-side">
+          <h2 class="side-title">Who's on what</h2>
+          <div class="roster">
+            ${set.roles.map(([role, who]) => `<div><div class="role">${esc(role)}</div><div class="who">${people(who)}</div></div>`).join("")}
+          </div>
+          <p class="note-small">(g) = sings while playing guitar.</p>
+        </aside>
+        <div class="songs">
+          ${set.songs.map((s) => s.interlude ? `<div class="interlude">${esc(s.interlude)}</div>` : song(s, ++n)).join("")}
+        </div>
       </div>`;
   }
 
@@ -115,7 +121,7 @@
     const open = [];
     for (const set of D.sets) for (const [role, who] of set.roles) if (!who.length) open.push(`${set.name}: ${role}`);
     return `
-      <section class="set-head">
+      <section class="page-head">
         <div class="label">Team</div>
         <h1>Who's on what</h1>
         <div class="sub">${all.length} people across ${D.sets.length} sets</div>

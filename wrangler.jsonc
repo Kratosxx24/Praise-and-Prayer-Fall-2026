@@ -1,0 +1,9 @@
+// Cloudflare deploy config (deployed by .git/hooks/pre-push on every push to main).
+// TEAM_KEY is a Worker secret; the sheets are uploaded to KV with tools/publish-sheets.sh (outside this repo).
+{
+  "name": "praise-and-prayer-fall-2026",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": ".", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+  "kv_namespaces": [{ "binding": "SHEETS", "id": "d1d6385a84a642588a70fb937554b14a" }]
+}

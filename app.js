@@ -11,11 +11,10 @@
   for (const set of D.sets) songs(set).forEach((s, i) => Object.assign(s, { id: slug(s.title), set, n: i + 1 }));
   const allSongs = D.sets.flatMap(songs);
 
-  // Saved in this browser only. Sheets can hold licensed lyrics, so they never go into the public repo.
+  // Saved in this browser only: view settings per song and the team's cached sheets.
   const store = {
     get(k) { try { return localStorage.getItem("pp:" + k); } catch (e) { return null; } },
     set(k, v) { try { v == null ? localStorage.removeItem("pp:" + k) : localStorage.setItem("pp:" + k, v); } catch (e) {} },
-    all() { const o = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith("pp:")) o[k] = localStorage.getItem(k); } } catch (e) {} return o; },
   };
 
   // Every instrument has one color, used everywhere it appears (CSS: .r-<key>).
@@ -258,32 +257,44 @@
   }
 
   // ---------- chord sheets ----------
+  // Read-only copies of the SongSelect charts. They're licensed, so they aren't in this public code:
+  // the team link (#unlock/<key>) fetches them from the Cloudflare worker and caches them on this device.
 
-  const sheetText = (s) => store.get("sheet:" + s.id) ?? s.sheet ?? "";
-  const template = (s) => {
-    const names = [...new Set((s.sections || []).map((x) => section(x).name))];
-    return (names.length ? names : ["Verse 1", "Chorus", "Bridge"]).map((n) => `# ${n}\n`).join("\n");
-  };
+  let team = {};
+  try { team = JSON.parse(store.get("team-sheets") || "{}"); } catch (e) {}
+  const unlocked = () => !!store.get("team-key");
+  async function loadTeam() {
+    const key = store.get("team-key");
+    if (!key) return;
+    try {
+      const r = await fetch("/api/sheets", { headers: { "x-team-key": key }, cache: "no-store" });
+      if (!r.ok) return; // offline or wrong site: keep the cached copy
+      const text = await r.text();
+      if (text === store.get("team-sheets")) return;
+      team = JSON.parse(text);
+      store.set("team-sheets", text);
+      if (view === "sheet" || view === "sheets") render(true);
+    } catch (e) {}
+  }
+
+  const sheetText = (s) => team[s.id] ?? s.sheet ?? "";
   const viewState = (s) => {
     let v = {};
     try { v = JSON.parse(store.get("view:" + s.id) || "{}"); } catch (e) {}
     return { tr: 0, capo: 0, nums: false, size: 1, ...v };
   };
+  const lockedNote = () => `<div class="locked card"><b>Sheets are for the team.</b> Open the team link once on this device and every SongSelect sheet shows up here. Ask Anderson for it.</div>`;
 
   function sheetView(s) {
     const v = viewState(s);
-    const empty = !sheetText(s).trim();
-    const keyPc = keyPcOf(s);
     const idx = allSongs.indexOf(s);
     const prev = allSongs[idx - 1], next = allSongs[idx + 1];
-    const diatonic = [[0, ""], [2, "m"], [4, "m"], [5, ""], [7, ""], [9, "m"]].map(([st, q], i) =>
-      [["1", "2", "3", "4", "5", "6"][i], noteName(keyPc + st, flatKey(keyPc)) + q]);
     return `
       <div class="sheet-page">
         <div class="sheet-head">
           <a class="back" href="#${s.set.id}">← ${esc(s.set.name)} · Song ${s.n}</a>
           <h1>${esc(s.title)}</h1>
-          <div class="sub">${esc(s.artist)} · Lead ${esc(s.lead)} · Written in ${esc(s.key)}</div>
+          <div class="sub">${esc(s.artist)} · Lead ${esc(s.lead)} · Key ${esc(s.key)}</div>
         </div>
 
         <div class="toolbar" id="tb">
@@ -300,24 +311,14 @@
             <button type="button" data-act="smaller" aria-label="Smaller text">A−</button>
             <button type="button" data-act="bigger" aria-label="Bigger text">A+</button>
           </div>
-          <button type="button" class="ctl tgl" data-act="edit" aria-pressed="${empty}">✎ Edit</button>
+          <button type="button" class="ctl" data-act="reset" title="Back to the original key">Reset</button>
         </div>
         <div class="capo-note" id="capo-note"></div>
 
         ${songMap(s.sections || [], { compact: true })}
 
-        <div class="sheet-body${empty ? " editing" : ""}" id="sheet-body">
+        <div class="sheet-body">
           <div class="sheet" id="sheet" style="--fs:${v.size}"></div>
-          <div class="editor" id="editor">
-            <div class="ed-row"><span class="label">Insert chord</span>${diatonic.map(([d, c]) => `<button type="button" class="ins" data-ins="[${c}]"><small>${d}</small>${pretty(c)}</button>`).join("")}<button type="button" class="ins" data-ins=" | "><small>bar</small>|</button></div>
-            <div class="ed-row"><span class="label">Insert section</span>${[...new Set((s.sections || []).map((x) => section(x).name))].map((n) => `<button type="button" class="ins sec t-${section(n).type}" data-ins="\n# ${esc(n)}\n">${esc(n)}</button>`).join("") || `<span class="muted">No arrangement yet</span>`}</div>
-            <textarea id="src" spellcheck="false" placeholder="# Verse 1&#10;| ${pretty(diatonic[0][1])} | ${pretty(diatonic[3][1])} | ${pretty(diatonic[5][1])} | ${pretty(diatonic[4][1])} |&#10;[${diatonic[0][1]}]Lyrics go [${diatonic[3][1]}]under chords">${esc(sheetText(s) || template(s))}</textarea>
-            <div class="ed-help">
-              <b># Chorus</b> starts a section · <b>[${pretty(diatonic[0][1])}]</b> puts a chord over the next word · a line of only chords and <b>|</b> is a chord line.
-              Write it in ${esc(s.key)}; use − / + to transpose. Saves in this browser only.
-              <button type="button" class="linkish" data-act="reset">${s.sheet ? "Reset to published" : "Clear"}</button>
-            </div>
-          </div>
         </div>
 
         <nav class="sheet-nav">
@@ -330,16 +331,14 @@
   function wireSheet(s) {
     const v = viewState(s);
     const keyPc = keyPcOf(s);
-    const src = document.getElementById("src");
     const sheet = document.getElementById("sheet");
-    const body = document.getElementById("sheet-body");
     const save = () => store.set("view:" + s.id, JSON.stringify(v));
 
     function paint(pop) {
       const sounding = keyPc + v.tr, shapes = sounding - v.capo;
       const ctx = { keyPc, shift: v.tr - v.capo, flats: flatKey(shapes), nums: v.nums };
-      const text = src.value;
-      sheet.innerHTML = text.trim() ? sheetHTML(text, ctx) : `<p class="flow-empty">Nothing here yet. Start typing in the editor.</p>`;
+      const text = sheetText(s);
+      sheet.innerHTML = text.trim() ? sheetHTML(text, ctx) : unlocked() ? `<p class="flow-empty">This sheet isn't posted yet.</p>` : lockedNote();
       sheet.style.setProperty("--fs", v.size);
       const k = document.getElementById("key-now");
       k.innerHTML = `<small>${v.tr ? (v.tr > 0 ? "+" : "") + v.tr : "Key"}</small>${pretty(noteName(sounding, flatKey(sounding)))}`;
@@ -350,39 +349,21 @@
     }
 
     document.getElementById("tb").onclick = (e) => {
-      const act = e.target.closest("[data-act]")?.dataset.act;
+      const btn = e.target.closest("[data-act]");
+      const act = btn?.dataset.act;
       if (!act) return;
       if (act === "up" || act === "down") { v.tr = Math.max(-11, Math.min(11, v.tr + (act === "up" ? 1 : -1))); paint(true); }
-      if (act === "nums") { v.nums = !v.nums; e.target.closest("button").setAttribute("aria-pressed", v.nums); paint(); }
+      if (act === "nums") { v.nums = !v.nums; btn.setAttribute("aria-pressed", v.nums); paint(); }
       if (act === "bigger" || act === "smaller") { v.size = Math.max(.8, Math.min(1.8, +(v.size + (act === "bigger" ? .1 : -.1)).toFixed(1))); paint(); }
-      if (act === "edit") {
-        const on = body.classList.toggle("editing");
-        e.target.closest("button").setAttribute("aria-pressed", on);
-        if (on) src.focus();
+      if (act === "reset") {
+        Object.assign(v, { tr: 0, capo: 0, nums: false });
+        document.getElementById("capo").value = 0;
+        document.querySelector("[data-act=nums]").setAttribute("aria-pressed", false);
+        paint(true);
       }
       save();
     };
     document.getElementById("capo").onchange = (e) => { v.capo = +e.target.value; paint(); save(); };
-
-    src.oninput = () => {
-      // Untouched template counts as empty, so the sheet doesn't show bare headings as "saved".
-      store.set("sheet:" + s.id, src.value === template(s) ? null : src.value);
-      paint();
-    };
-    document.getElementById("editor").onclick = (e) => {
-      const ins = e.target.closest("[data-ins]");
-      if (ins) {
-        const t = ins.dataset.ins, a = src.selectionStart, b = src.selectionEnd;
-        src.setRangeText(t, a, b, "end");
-        src.focus();
-        src.oninput();
-      }
-      if (e.target.closest("[data-act=reset]") && confirm(s.sheet ? "Replace your version with the published sheet?" : "Clear this sheet?")) {
-        store.set("sheet:" + s.id, null);
-        src.value = s.sheet || template(s);
-        paint();
-      }
-    };
     // Song map blocks jump to that section of the sheet.
     document.querySelectorAll(".map.compact .blk").forEach((b) => b.onclick = () => {
       const want = b.dataset.jump;
@@ -394,52 +375,24 @@
   }
 
   function sheetsIndex() {
-    const status = (s) => store.get("sheet:" + s.id) ? ["mine", "Your sheet"] : s.sheet ? ["pub", "Published"] : ["none", "Not started"];
-    const mine = allSongs.filter((s) => store.get("sheet:" + s.id)).length;
+    const ready = allSongs.filter((s) => sheetText(s).trim()).length;
     return `
-      <section class="page-head row">
-        <div>
-          <div class="label">Chord sheets</div>
-          <h1>Sheets</h1>
-          <div class="sub">${mine} of ${allSongs.length} started on this device. Build, transpose, capo, numbers.</div>
-        </div>
-        <div class="head-actions">
-          <button type="button" class="btn" id="export">Back up sheets</button>
-          <label class="btn">Restore<input type="file" id="import" accept="application/json" hidden></label>
-        </div>
+      <section class="page-head">
+        <div class="label">Chord sheets</div>
+        <h1>Sheets</h1>
+        <div class="sub">${unlocked() ? `${ready} of ${allSongs.length} songs ready. Transpose, capo and numbers on every sheet.` : "The SongSelect charts for every song, ready to transpose."}</div>
       </section>
+      ${unlocked() ? "" : lockedNote()}
       <div class="order-grid">
         ${D.sets.map((set, i) => `
           <section class="order-set rise" style="--i:${i}">
             <a class="order-set-head" href="#${set.id}"><span class="set-no">${i + 1}</span><span class="set-name"><span class="label">${esc(set.name)}</span><h2>${esc(set.title)}</h2></span></a>
             <ol class="order">${songs(set).map((s) => {
-              const [cls, label] = status(s);
-              return `<li><a class="row" href="#sheet/${s.id}"><span class="n">${s.n}</span><span class="tm"><span class="t">${esc(s.title)}</span><span class="m"><span class="st st-${cls}">${label}</span></span></span><span class="k">${esc(s.key)}</span></a></li>`;
+              const has = !!sheetText(s).trim();
+              return `<li><a class="row" href="#sheet/${s.id}"><span class="n">${s.n}</span><span class="tm"><span class="t">${esc(s.title)}</span><span class="m"><span class="st st-${has ? "pub" : "none"}">${has ? "Sheet ready" : unlocked() ? "Not posted yet" : "Team link needed"}</span></span></span><span class="k">${esc(s.key)}</span></a></li>`;
             }).join("")}</ol>
           </section>`).join("")}
-      </div>
-      <p class="note-small wide">Sheets you write are saved in this browser only, so they're not on the public site (song lyrics are licensed). Use <b>Back up sheets</b> to save a file you can restore on another device.</p>`;
-  }
-
-  function wireSheetsIndex() {
-    document.getElementById("export").onclick = () => {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([JSON.stringify(store.all(), null, 2)], { type: "application/json" }));
-      a.download = `pandp-sheets-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    };
-    document.getElementById("import").onchange = async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      try {
-        const data = JSON.parse(await f.text());
-        const keys = Object.keys(data).filter((k) => k.startsWith("pp:"));
-        if (!keys.length || !confirm(`Restore ${keys.length} saved item(s)? This replaces sheets with the same song.`)) return;
-        for (const k of keys) store.set(k.slice(3), String(data[k]));
-        render();
-      } catch (err) { alert("That file isn't a sheets backup."); }
-    };
+      </div>`;
   }
 
   // ---------- people ----------
@@ -494,9 +447,16 @@
   // ---------- routing ----------
 
   let view = "home";
-  function render() {
+  function render(keepScroll) {
     const hash = decodeURIComponent(location.hash.slice(1)) || "home";
     const [v, arg] = hash.split("/");
+    // Team link: remember the key on this device, then drop it from the address bar.
+    if (v === "unlock" && arg) {
+      store.set("team-key", arg);
+      history.replaceState(null, "", location.pathname + location.search + "#sheets");
+      loadTeam();
+      return render();
+    }
     const set = D.sets.find((s) => s.id === v);
     const sheetSong = v === "sheet" && allSongs.find((s) => s.id === arg);
     view = set ? "set" : sheetSong ? "sheet" : ["people", "focus", "sheets"].includes(v) ? v : "home";
@@ -515,7 +475,6 @@
     document.title = `${set ? set.name + " · " : sheetSong ? sheetSong.title + " · " : view !== "home" ? view[0].toUpperCase() + view.slice(1) + " · " : ""}P&P ${D.term}`;
 
     if (view === "sheet") wireSheet(sheetSong);
-    if (view === "sheets") wireSheetsIndex();
     if (view === "focus") { document.querySelectorAll(".f-song").forEach((li) => li.onclick = (e) => { if (!e.target.closest("a")) { now = +li.dataset.g === now ? -1 : +li.dataset.g; markNow(); } }); markNow(); }
     const search = document.getElementById("search");
     if (search) {
@@ -526,7 +485,7 @@
       search.oninput = filter;
       filter();
     }
-    window.scrollTo(0, 0);
+    if (!keepScroll) window.scrollTo(0, 0);
   }
 
   // Sliding pill behind the active tab.
@@ -560,7 +519,8 @@
   media.addEventListener("change", syncTheme);
   syncTheme();
 
-  addEventListener("hashchange", render);
+  addEventListener("hashchange", () => render());
   render();
+  loadTeam();
   document.fonts?.ready.then(moveInd);
 })();

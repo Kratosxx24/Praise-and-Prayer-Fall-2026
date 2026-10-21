@@ -101,9 +101,15 @@
         out.push(`<div class="sh-bars">${line.replace(TAIL, "").replace(/[\[\]]/g, " ").trim().split(/\s+/).map((t) =>
           BAR.test(t) ? `<span class="bar">${esc(t)}</span>` : isChord(t) ? `<b class="ch">${chordHTML(t, ctx)}</b>` : `<span class="rep">${esc(t)}</span>`).join("")}${tail ? `<span class="rep note">${esc(tail)}</span>` : ""}</div>`);
       } else if (line.includes("[")) {
+        // Each word is its own block so lines wrap between words on a phone; a chord rides on the word it starts.
         const parts = line.split(/\[([^\]]*)\]/);
-        let html = parts[0] ? `<span class="seg"><b class="ch"></b><span class="ly">${esc(parts[0])}</span></span>` : "";
-        for (let i = 1; i < parts.length; i += 2) html += `<span class="seg"><b class="ch">${chordHTML(parts[i], ctx)}</b><span class="ly">${parts[i + 1] ? esc(parts[i + 1]) : "&nbsp;"}</span></span>`;
+        const seg = (ch, text) => `<span class="seg"><b class="ch">${ch}</b><span class="ly">${text ? esc(text) : "&nbsp;"}</span></span>`;
+        const words = (text) => text.match(/\S*\s*/g).filter(Boolean);
+        let html = words(parts[0]).map((w) => seg("", w)).join("");
+        for (let i = 1; i < parts.length; i += 2) {
+          const [first = "", ...rest] = words(parts[i + 1] || "");
+          html += seg(chordHTML(parts[i], ctx), first) + rest.map((w) => seg("", w)).join("");
+        }
         out.push(`<div class="sh-line">${html}</div>`);
       } else {
         out.push(`<div class="sh-ly${/^\s*\(/.test(line) ? " cmt" : ""}">${esc(line)}</div>`);

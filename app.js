@@ -166,6 +166,20 @@
     }
   }
 
+  // ---------- light / dark ----------
+  // No saved choice = follow the device setting.
+  const root = document.documentElement;
+  const media = matchMedia("(prefers-color-scheme: dark)");
+  const isDark = () => root.dataset.theme ? root.dataset.theme === "dark" : media.matches;
+  const syncTheme = () => root.classList.toggle("dark", isDark());
+  document.getElementById("theme-btn").onclick = () => {
+    root.dataset.theme = isDark() ? "light" : "dark";
+    try { localStorage.setItem("theme", root.dataset.theme); } catch (e) {}
+    syncTheme();
+  };
+  media.addEventListener("change", syncTheme);
+  syncTheme();
+
   window.addEventListener("hashchange", render);
   render();
 })();

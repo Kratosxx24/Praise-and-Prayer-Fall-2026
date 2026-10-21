@@ -10,7 +10,7 @@
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #111112;
     --surface: #18181a;
     --surface-2: #232326;
@@ -19,6 +19,15 @@
     --line: #2e2e32;
     --strong-line: #f2f2f3;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #111112;
+  --surface: #18181a;
+  --surface-2: #232326;
+  --ink: #f2f2f3;
+  --muted: #9a9aa1;
+  --line: #2e2e32;
+  --strong-line: #f2f2f3;
 }
 
 * { box-sizing: border-box; }
@@ -46,6 +55,16 @@ h1, h2, h3 { font-weight: 700; line-height: 1.2; margin: 0; letter-spacing: -.01
 .brand-term { font-size: 14px; color: var(--muted); }
 .tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
+.theme-btn {
+  flex: none; margin-left: auto; display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.theme-btn:hover { background: var(--surface-2); }
+.theme-btn svg { width: 18px; height: 18px; }
+.theme-btn .moon { display: none; }
+.dark .theme-btn .sun { display: none; }
+.dark .theme-btn .moon { display: block; }
 .tabs a {
   flex: none; padding: 6px 12px; border-radius: 6px;
   text-decoration: none; font-size: 15px; font-weight: 500; color: var(--muted);
@@ -143,4 +162,5 @@ main { max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; outline: none;
   .song { padding: 14px 12px; }
   .song-top { gap: 10px; }
   .tabs a { flex: 1; text-align: center; padding: 6px 4px; }
+  .theme-btn { position: absolute; top: 8px; right: 16px; width: 30px; height: 30px; }
 }

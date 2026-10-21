@@ -11,42 +11,28 @@
 
   // ---------- views ----------
 
+  // Running order: every set, songs in order.
   function home() {
-    const v = D.verse;
     return `
-      <section class="hero">
-        <div class="eyebrow">${esc(D.title)} · ${esc(D.term)}</div>
-        <h1>${esc(D.theme)}</h1>
-        <div class="sub">${esc(D.subtitle)}</div>
-        <blockquote class="verse collapsed" id="verse">
-          ${v.text.map((p) => `<p>${esc(p)}</p>`).join("")}
-          <cite>${esc(v.ref)}</cite><button class="link-btn" id="verse-toggle">Read all</button>
-        </blockquote>
+      <section class="order-head">
+        <h1>Running order</h1>
+        <div class="sub">${D.sets.length} sets · ${D.sets.reduce((n, s) => n + songs(s).length, 0)} songs</div>
       </section>
-
-      <h2 class="section-title">Schedule</h2>
-      <div class="sched">
-        ${D.schedule.map((s) => `
-          <div class="card">
-            <div class="when">${esc(s.when)}</div>
-            <div class="what">${esc(s.what)}${s.detail ? `<br>${esc(s.detail)}` : ""}</div>
-          </div>`).join("")}
-      </div>
-
-      <h2 class="section-title">The sets</h2>
-      <div class="set-cards">
-        ${D.sets.map((set) => `
-          <a class="card set-card" href="#${set.id}">
-            <div class="eyebrow">${esc(set.name)} · ${esc(set.practice)}</div>
-            <h3>${esc(set.title)}</h3>
-            <ol>${songs(set).map((s) => `<li><span>${esc(s.title)}</span> · ${esc(s.key)}</li>`).join("")}</ol>
-          </a>`).join("")}
-      </div>
-
-      <h2 class="section-title">To do</h2>
-      <div class="card">
-        <ul class="todo">${D.todo.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
-      </div>`;
+      ${D.sets.map((set) => {
+        let n = 0;
+        return `
+        <section class="order-set">
+          <div class="order-set-head">
+            <h2>${esc(set.name)} <span>· ${esc(set.title)}</span></h2>
+            <a href="#${set.id}">Details →</a>
+          </div>
+          <ol class="order">
+            ${set.songs.map((s) => s.interlude
+              ? `<li class="gap">${esc(s.interlude)}</li>`
+              : `<li><span class="n">${++n}</span><span><div class="t">${esc(s.title)}</div><div class="m">${esc(s.lead)} · ${esc(s.artist)}</div></span><span class="k">${esc(s.key)}</span></li>`).join("")}
+          </ol>
+        </section>`;
+      }).join("")}`;
   }
 
   function flow(sections) {
@@ -85,11 +71,10 @@
     let n = 0;
     return `
       <section class="set-head">
-        <div class="eyebrow">${esc(set.name)}</div>
+        <div class="label">${esc(set.name)}</div>
         <h1>${esc(set.title)}</h1>
         ${set.subtitle ? `<div class="sub">${esc(set.subtitle)}</div>` : ""}
         <div class="set-meta">
-          <span class="chip">Practice: ${esc(set.practice)}</span>
           <span class="chip">${songs(set).length} songs</span>
         </div>
       </section>
@@ -131,7 +116,7 @@
     for (const set of D.sets) for (const [role, who] of set.roles) if (!who.length) open.push(`${set.name}: ${role}`);
     return `
       <section class="set-head">
-        <div class="eyebrow">Team</div>
+        <div class="label">Team</div>
         <h1>Who's on what</h1>
         <div class="sub">${all.length} people across ${D.sets.length} sets</div>
       </section>
@@ -170,12 +155,6 @@
   }
 
   function wire(view, arg) {
-    const toggle = document.getElementById("verse-toggle");
-    if (toggle) toggle.onclick = () => {
-      const v = document.getElementById("verse");
-      toggle.textContent = v.classList.toggle("collapsed") ? "Read all" : "Show less";
-    };
-
     const search = document.getElementById("search");
     if (search) {
       const filter = () => {

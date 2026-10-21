@@ -58,25 +58,27 @@
   const noteName = (p, flats) => (flats ? FLAT : SHARP)[mod(p)];
   const pretty = (s) => s.replace(/([A-G])#/g, "$1♯").replace(/([A-G])b/g, "$1♭");
   const DEG = ["1", "♭2", "2", "♭3", "3", "4", "♯4", "5", "♭6", "6", "♭7", "7"];
-  const CHORD = /^([A-G][#b]?)((?:maj|min|dim|aug|sus|add|omit|no|No|m|M|[0-9]|[#b+°ø()^*-])*)(?:\/([A-G][#b]?))?$/;
-  const isChord = (t) => CHORD.test(norm(t)) || /^N\.?C\.?$/i.test(t);
+  const CHORD = /^([A-G][#b]?)((?:maj|min|dim|aug|sus|add|omit|no|No|m|M|[0-9]|[#b+°ø()^*-])*)(?:\/([A-G][#b]?))?(?:\(([A-G][^)]*)\))?$/;
+  const isChord = (t) => CHORD.test(norm(t)) || /^N\.?C\.?$/i.test(t) || /^\([A-G].*\)$/.test(t) && CHORD.test(norm(t.slice(1, -1)));
   const keyPcOf = (song) => pcOf(song.key.split("→")[0].trim());
 
   // ctx: { keyPc, shift (semitones applied to what's written), flats, nums }
   function chordHTML(raw, ctx) {
+    if (/^\(.+\)$/.test(raw)) return `(${chordHTML(raw.slice(1, -1), ctx)})`; // "(Db2)" alternate chord
     const m = norm(raw).match(CHORD);
     if (!m) return esc(raw);
-    const [, root, qual, bass] = m;
+    const [, root, qual, bass, alt] = m;
     const name = (n) => ctx.nums ? DEG[mod(pcOf(n) - ctx.keyPc)] : pretty(noteName(pcOf(n) + ctx.shift, ctx.flats));
     // Like SongSelect: minor "m" full size, the rest (2, sus, (4), maj7) raised.
     const [, minor = "", ext] = qual.match(/^(m(?!aj))?(.*)$/);
-    return `${name(root)}${minor}${ext ? `<span class="q">${esc(ext)}</span>` : ""}${bass ? `<span class="sl">/${name(bass)}</span>` : ""}`;
+    return `${name(root)}${minor}${ext ? `<span class="q">${esc(ext)}</span>` : ""}${bass ? `<span class="sl">/${name(bass)}</span>` : ""}${alt ? `<span class="alt">(${chordHTML(alt, ctx)})</span>` : ""}`;
   }
 
   const BAR = /^[|:.\]\[]+$|^\|\|?:?$|^:?\|\|?$/;
   const REP = /^(x\d+|\d+x|\(x?\d+x?\)|-|–|\/|%|N\.?C\.?)$/i;
+  const TAIL = /\s+(\((?![A-G][^)]*\)$)[^)]*\))\s*$/; // "| A | D | (To Ch. 2)"
   function isChordLine(line) {
-    const toks = line.replace(/[\[\]]/g, " ").trim().split(/\s+/);
+    const toks = line.replace(TAIL, "").replace(/[\[\]]/g, " ").trim().split(/\s+/);
     return toks.some(isChord) && toks.every((t) => isChord(t) || BAR.test(t) || REP.test(t));
   }
 
@@ -96,8 +98,9 @@
       } else if (!line.trim()) {
         out.push(`<div class="sh-gap"></div>`);
       } else if (isChordLine(line)) {
-        out.push(`<div class="sh-bars">${line.replace(/[\[\]]/g, " ").trim().split(/\s+/).map((t) =>
-          BAR.test(t) ? `<span class="bar">${esc(t)}</span>` : isChord(t) ? `<b class="ch">${chordHTML(t, ctx)}</b>` : `<span class="rep">${esc(t)}</span>`).join("")}</div>`);
+        const tail = (line.match(TAIL) || [])[1];
+        out.push(`<div class="sh-bars">${line.replace(TAIL, "").replace(/[\[\]]/g, " ").trim().split(/\s+/).map((t) =>
+          BAR.test(t) ? `<span class="bar">${esc(t)}</span>` : isChord(t) ? `<b class="ch">${chordHTML(t, ctx)}</b>` : `<span class="rep">${esc(t)}</span>`).join("")}${tail ? `<span class="rep note">${esc(tail)}</span>` : ""}</div>`);
       } else if (line.includes("[")) {
         const parts = line.split(/\[([^\]]*)\]/);
         let html = parts[0] ? `<span class="seg"><b class="ch"></b><span class="ly">${esc(parts[0])}</span></span>` : "";

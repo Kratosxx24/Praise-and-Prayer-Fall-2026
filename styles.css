@@ -339,6 +339,8 @@ button.tgl[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .ch { font-weight: 700; color: var(--ink); white-space: nowrap; }
 .ch .q { font-size: .72em; font-weight: 700; vertical-align: .45em; line-height: 0; }
 .ch .sl { font-weight: 600; opacity: .8; }
+.ch .alt { font-weight: 600; opacity: .75; margin-left: .1em; }
+.sh-bars .rep.note { font-style: italic; font-weight: 500; }
 .sh-bars { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35em .9em; padding: 4px 0; font-size: 1.12em; }
 .sh-bars .bar { color: var(--muted); font-weight: 300; }
 .sh-bars .rep { font-size: .8em; font-weight: 700; color: var(--muted); }

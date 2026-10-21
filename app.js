@@ -19,7 +19,8 @@
 
   // Every instrument has one color, used everywhere it appears (CSS: .r-<key>).
   const roleKey = (role) => role.toLowerCase().replace(/[^a-z]/g, "");
-  const roleChip = (role, extra = "") => `<span class="rchip r-${roleKey(role)}${extra === "?" ? " maybe" : ""}">${esc(role)}${extra === "?" ? " ?" : ""}</span>`;
+  // extra: "?" = not confirmed, "3–4" = only on those songs, "g" = (sings with guitar; nothing to show)
+  const roleChip = (role, extra = "") => `<span class="rchip r-${roleKey(role)}${extra === "?" ? " maybe" : ""}">${esc(role)}${extra === "?" ? " ?" : extra && extra !== "g" ? ` <small>songs ${esc(extra)}</small>` : ""}</span>`;
 
   // Arrangement sections: "Bridge x3" / "2x" note -> repeat count, and a color by type.
   function section(s) {
@@ -209,6 +210,7 @@
                   <span class="ti"><span class="t">${esc(s.title)}</span><span class="a">${esc(s.artist)} · Lead ${esc(s.lead)}</span></span>
                   <span class="k">${esc(s.key)}</span>
                 </a>
+                ${s.players ? `<p class="song-note players">${esc(s.players)}</p>` : ""}
                 ${s.note ? `<p class="song-note">${esc(s.note)}</p>` : ""}
                 ${s.sections?.length ? `<div class="arr"><span class="label">Arrangement</span>${songMap(s.sections)}</div>` : ""}
               </li>`).join("")}
@@ -217,7 +219,7 @@
         <aside class="side-col">
           <h2 class="label">Lineup</h2>
           ${lineup(set)}
-          <p class="fine">(g) sings while playing guitar · (?) not confirmed</p>
+          <p class="fine">(g) sings while playing guitar · (?) not confirmed · (3–4) only on those songs</p>
         </aside>
       </div>`;
   }
@@ -269,6 +271,7 @@
           <a class="back" href="#${s.set.id}">‹ ${esc(s.set.name)}</a>
           <h1>${esc(s.title)}</h1>
           <p class="sub">${esc(s.artist)}<br>Lead ${esc(s.lead)} · Song ${s.n} of ${songs(s.set).length}</p>
+          ${s.players ? `<p class="players-note">${esc(s.players)}</p>` : ""}
 
           <div class="opt">
             <span class="label">Key</span>

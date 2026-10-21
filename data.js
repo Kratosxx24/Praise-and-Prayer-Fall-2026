@@ -5,7 +5,9 @@
 //         chord chart (leave "" until it's ready), sections = arrangement in order.
 //         A section can be a plain string or { name, note, dynamics }.
 //         sheet = optional published chord sheet (chords only, no lyrics: the site is public).
-// Sets:   roles list who is on what. "(g)" after a vocalist = sings while playing guitar.
+// Sets:   roles list who is on what. "(g)" after a vocalist = sings while playing guitar,
+//         "(?)" = not confirmed, "(3–4)" = only on those songs of the set.
+//         A song's players = lineup changes for that song, shown on its row and sheet.
 
 window.PANDP = {
   title: "Praise & Prayer",
@@ -93,7 +95,8 @@ window.PANDP = {
       roles: [
         ["Guitar", ["David", "Matthew"]],
         ["Vocals", ["Matthew (g)", "Millou", "Alex", "Becky"]],
-        ["Piano", ["Amy"]],
+        ["Piano", ["Amy (1–2)", "Anderson (3–4)"]],
+        ["Cello", ["Amy (3–4)"]],
         ["Bass", ["Elliot"]],
         ["Cajon", ["Nathan"]],
         ["Sound", []],
@@ -106,8 +109,10 @@ window.PANDP = {
           sections: ["Intro", "Verse 1", "Chorus", "Verse 2", "Chorus 2", "Tag 1A", { name: "Bridge 1A", note: "2x" },
                      { name: "Tag 1B", note: "2x. 2nd time: F♯ instead of D♯m at the end" }, { name: "Bridge 1B", note: "2x" }, "Chorus", "Tag 2"] },
         { interlude: "Prayer time" },
-        { title: "Turn Your Eyes", artist: "Hillsong", lead: "Millou", key: "D", confirmed: true, chart: "", sections: [] },
-        { title: "Be Thou My Vision", artist: "Shane & Shane", lead: "Becky", key: "D → E", note: "Key change from D to E.", chart: "", sections: [] }
+        { title: "Turn Your Eyes", artist: "Hillsong", lead: "Millou", key: "D", confirmed: true, chart: "", sections: [],
+          players: "Anderson on keys · Amy on cello" },
+        { title: "Be Thou My Vision", artist: "Shane & Shane", lead: "Becky", key: "D → E", note: "Key change from D to E.", chart: "", sections: [],
+          players: "Anderson on keys · Amy on cello" }
       ]
     },
     {
